@@ -1,3 +1,3 @@
-module github.com/vituchon/esplity
+module github.com/vituchon/splitify
 
 go 1.19
