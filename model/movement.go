@@ -105,19 +105,29 @@ func EnsureSharesSumToZero(participantShareByParticipantId ParticipantShareByPar
 	}
 }
 
+func deepCopyParticipantShareByParticipantId(original map[int]Price) map[int]Price {
+	_copy := make(map[int]Price)
+	for key, value := range original {
+		_copy[key] = value
+	}
+	return _copy
+}
+
 // generacion de deudas y créditos para cada participante en relación a los demás participantes
-func BuildDebitCreditMap(participantMovements []ParticipantMovement, participantShareByParticipantId ParticipantShareByParticipantId) DebitCreditMap {
+func BuildDebitCreditMap(participantMovements []ParticipantMovement, shares ParticipantShareByParticipantId) DebitCreditMap {
 	debitCreditMap := make(DebitCreditMap)
-	participantIds := getSortedParticipantIds(participantShareByParticipantId)
+	sharesCopy := deepCopyParticipantShareByParticipantId(shares)
+	shares = sharesCopy // using a copy in order to leave untouch the "shares" argument
+	participantIds := getSortedParticipantIds(shares)
 	for _, participantMovement := range participantMovements {
-		participantShare := participantShareByParticipantId[participantMovement.ParticipantId]
+		participantShare := shares[participantMovement.ParticipantId]
 		participantHasDebt := participantShare < 0
 		if participantHasDebt {
 			debitCreditMap[participantMovement.ParticipantId] = make(map[int]Price)
 			// Dev notes: The order of processing must be taken into account to produce deterministic results ...
-			//for id, share := range participantShareByParticipantId { // ... so relying on standard map iteration is not viable.
+			//for id, share := range shares { // ... so relying on standard map iteration is not viable.
 			for _, id := range participantIds {
-				share := participantShareByParticipantId[id]
+				share := shares[id]
 				if id == participantMovement.ParticipantId {
 					continue
 				}
@@ -128,14 +138,14 @@ func BuildDebitCreditMap(participantMovements []ParticipantMovement, participant
 						// 150 + -50 = 100, ejemplo considerando que participant tiene 50 de deuda y hay otro que se le debe 150
 						debitCreditMap[participantMovement.ParticipantId][id] = -participantShare // le da todo (50) al otro
 						participantShare = 0                                                      // queda debiendo 0
-						participantShareByParticipantId[participantMovement.ParticipantId] = 0    // queda debiendo 0
-						participantShareByParticipantId[id] = remainingShare                      // se le debe 100 al otro
+						shares[participantMovement.ParticipantId] = 0                             // queda debiendo 0
+						shares[id] = remainingShare                                               // se le debe 100 al otro
 						break
 					} else { // 100 + -250 = -150, ejemplo considerando que participant tiene 250 de deuda y al otro se le debe 100
-						debitCreditMap[participantMovement.ParticipantId][id] = share                       // le da lo que falta (100) al otro
-						participantShare = remainingShare                                                   // sigue debiendo 150
-						participantShareByParticipantId[participantMovement.ParticipantId] = remainingShare // sigue debiendo 150
-						participantShareByParticipantId[id] = 0                                             // no se le debe más al otro
+						debitCreditMap[participantMovement.ParticipantId][id] = share // le da lo que falta (100) al otro
+						participantShare = remainingShare                             // sigue debiendo 150
+						shares[participantMovement.ParticipantId] = remainingShare    // sigue debiendo 150
+						shares[id] = 0                                                // no se le debe más al otro
 					}
 				}
 			}

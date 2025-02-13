@@ -212,7 +212,7 @@ func TestCalculateDebitCreditMapForTransfer(t *testing.T) {
 				t.Fatal(err.Error())
 			}
 			if !reflect.DeepEqual(participantShareByParticipantId, test.shares) {
-				t.Fatalf("generated share %v, expected share %v", participantShareByParticipantId, shares)
+				t.Fatalf("generated share %v, expected share %v", participantShareByParticipantId, test.shares)
 			}
 			generated := BuildDebitCreditMap(participantMovements, participantShareByParticipantId)
 			if !areEquals(generated, test.expected) {
