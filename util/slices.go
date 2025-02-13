@@ -1,6 +1,6 @@
 package util
 
-func filter[T any](items []T, fn func(item T) bool) []T {
+func Filter[T any](items []T, fn func(item T) bool) []T {
     filteredItems := []T{}
     for _, value := range items {
         if fn(value) {
@@ -9,3 +9,13 @@ func filter[T any](items []T, fn func(item T) bool) []T {
     }
     return filteredItems
 }
+
+
+func ToValues[T any](items []*T) []T {
+    values := []T{}
+    for _, value := range items {
+        values = append(values, *value)
+    }
+    return values
+}
+
