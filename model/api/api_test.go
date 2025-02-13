@@ -8,39 +8,44 @@ import (
 )
 
 func TestNormalApiFlowFromGoodClient(t *testing.T) {
-	// Crear un grupo y verificar que exista
 	group, err := CreateGroup("Group 1")
 	if err != nil {
 		t.Fatalf("Failed to create group: %v", err)
 	}
-	if group.Name != "Group 1" {
-		t.Fatalf("Expected group name to be 'Group 1', got '%s'", group.Name)
-	}
-	savedGroup, err := groupsRepository.GetAll()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(savedGroup) != 1 {
-		t.Fatalf("Expected 1 group, got %d", len(savedGroup))
-	}
+
+	t.Run("TestCreateGroup", func(t *testing.T) {
+		if group.Name != "Group 1" {
+			t.Fatalf("Expected group name to be 'Group 1', got '%s'", group.Name)
+		}
+		savedGroup, err := groupsRepository.GetAll()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(savedGroup) != 1 {
+			t.Fatalf("Expected 1 group, got %d", len(savedGroup))
+		}
+	})
 
 	participants := []string{"Vitu", "Chori", "Junior"}
 	var participantModels []*model.Participant
-	for _, name := range participants {
-		p, err := AddParticipant(Participant{GroupId: group.Id, Name: name})
-		if err != nil {
-			t.Fatalf("Failed to add participant '%s': %v", name, err)
-		}
-		participantModels = append(participantModels, p)
-	}
 
-	savedParticipants, err := participantsRepository.GetAll()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(savedParticipants) != 3 {
-		t.Fatalf("Expected 3 participants, got %d", len(savedParticipants))
-	}
+	t.Run("TestAddParticipants", func(t *testing.T) {
+		for _, name := range participants {
+			p, err := AddParticipant(Participant{GroupId: group.Id, Name: name})
+			if err != nil {
+				t.Fatalf("Failed to add participant '%s': %v", name, err)
+			}
+			participantModels = append(participantModels, p)
+		}
+
+		savedParticipants, err := participantsRepository.GetAll()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(savedParticipants) != 3 {
+			t.Fatalf("Expected 3 participants, got %d", len(savedParticipants))
+		}
+	})
 
 	movements := []Movement{
 		{
@@ -94,43 +99,47 @@ func TestNormalApiFlowFromGoodClient(t *testing.T) {
 			},*/
 		},
 	}
-
 	var addedMovements []*model.Movement
 	var addedParticipantMovements []*model.ParticipantMovement
-	for _, movement := range movements {
-		m, pms, err := AddMovement(movement)
-		if err != nil {
-			t.Fatalf("Failed to add movement '%s': %v", movement.Concept, err)
+
+	t.Run("TestAddMovements", func(t *testing.T) {
+		for _, movement := range movements {
+			m, pms, err := AddMovement(movement)
+			if err != nil {
+				t.Fatalf("Failed to add movement '%s': %v", movement.Concept, err)
+			}
+			addedMovements = append(addedMovements, m)
+			addedParticipantMovements = append(addedParticipantMovements, pms...)
 		}
-		addedMovements = append(addedMovements, m)
-		addedParticipantMovements = append(addedParticipantMovements, pms...)
-	}
 
-	// Verificar que los movimientos y participant movements sean los esperados
-	if len(addedMovements) != 3 {
-		t.Fatalf("Expected 3 movements, got %d", len(addedMovements))
-	}
-	if len(addedParticipantMovements) != 8 {
-		t.Fatalf("Expected 8 participant movements, got %d", len(addedParticipantMovements))
-	}
+		if len(addedMovements) != 3 {
+			t.Fatalf("Expected 3 movements, got %d", len(addedMovements))
+		}
+		if len(addedParticipantMovements) != 8 {
+			t.Fatalf("Expected 8 participant movements, got %d", len(addedParticipantMovements))
+		}
+	})
 
-	generatedBalance, shares, err := CalculateBalances(group.Id)
-	if err != nil {
-		t.Fatalf("Failed to calculate balances: %v", err)
-	}
-	expectedBalance := model.DebitCreditMap{
-		2: {1: 100},
-	}
-	if !reflect.DeepEqual(generatedBalance, expectedBalance) {
-		t.Errorf("Balances mismatch. Expected: %v, got: %v", expectedBalance, generatedBalance)
-	}
+	t.Run("TestCalculateBalancesAndShares", func(t *testing.T) {
+		generatedBalance, shares, err := CalculateBalances(group.Id)
+		if err != nil {
+			t.Fatalf("Failed to calculate balances: %v", err)
+		}
 
-	expectedShares := model.ParticipantShareByParticipantId{
-		1: 100,
-		2: -100,
-		3: 0,
-	}
-	if !reflect.DeepEqual(shares, expectedShares) {
-		t.Errorf("Shares mismatch. Expected: %v, got: %v", expectedShares, shares)
-	}
+		expectedBalance := model.DebitCreditMap{
+			2: {1: 100},
+		}
+		if !reflect.DeepEqual(generatedBalance, expectedBalance) {
+			t.Errorf("Balances mismatch. Expected: %v, got: %v", expectedBalance, generatedBalance)
+		}
+
+		expectedShares := model.ParticipantShareByParticipantId{
+			1: 100,
+			2: -100,
+			3: 0,
+		}
+		if !reflect.DeepEqual(shares, expectedShares) {
+			t.Errorf("Shares mismatch. Expected: %v, got: %v", expectedShares, shares)
+		}
+	})
 }
