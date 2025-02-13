@@ -1,6 +1,7 @@
 package api
 
 import (
+	//"encoding/json"
 	"fmt"
 	"github.com/vituchon/splitify/model"
 	"github.com/vituchon/splitify/repositories"
@@ -120,8 +121,10 @@ func CalculateBalances(groupId int) (model.DebitCreditMap, model.ParticipantShar
 		}
 
 		participantMovements := util.ToValues(participantMovementsPtr)
-		//fmt.Println(movement,participantMovements)
-
+		model.EnsureMovementAmountMatchesParticipantAmounts(*movement, participantMovements)
+		if err != nil {
+			return nil, nil, err
+		}
 		participantShareByParticipantId := model.BuildParticipantsEqualShare(*movement, participantMovements)
 		err = model.EnsureSharesSumToZero(participantShareByParticipantId)
 		if err != nil {
@@ -134,3 +137,42 @@ func CalculateBalances(groupId int) (model.DebitCreditMap, model.ParticipantShar
 	}
 	return acumulatedBalance, acumulatedShare, nil
 }
+
+
+func CalculateBalance(groupId int, movementId int) (model.DebitCreditMap, model.ParticipantShareByParticipantId, error) {
+	_, err := groupsRepository.GetById(groupId)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	movement, err := movementsRepository.GetById(movementId)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	participantMovementsPtr, err := participantMovementsRepository.GetByMovementId(movement.Id)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	participantMovements := util.ToValues(participantMovementsPtr)
+	
+
+	err = model.EnsureMovementAmountMatchesParticipantAmounts(*movement, participantMovements)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	shares := model.BuildParticipantsEqualShare(*movement, participantMovements)
+	err = model.EnsureSharesSumToZero(shares)
+	if err != nil {
+		return nil, nil, err
+	}
+	/*a, _ := json.Marshal(*movement)
+	b, _ := json.Marshal(participantMovements)
+	c, _ := json.Marshal(shares)
+	fmt.Println(string(a), "\n", string(b), "\nShares:", string(c))*/
+	balance := model.BuildDebitCreditMap(participantMovements, shares)
+	return balance, shares, nil
+}
+
