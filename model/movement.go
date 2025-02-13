@@ -7,9 +7,18 @@ import (
 
 type Movement struct {
 	Id        int    `json:"id"`
+	GroupId   int    `json:"groupId"`
 	CreatedAt int64  `json:"createdAt"` // unix timestamp, in seconds since epoch
 	Amount    Price  `json:"amount"`
 	Concept   string `json:"concept"`
+}
+
+func (movement Movement) GetId() int {
+	return movement.Id
+}
+
+func (movement *Movement) SetId(id int) {
+	movement.Id = id
 }
 
 type TransferMovement struct {
@@ -25,6 +34,14 @@ type ParticipantMovement struct {
 	Amount        Price `json:"amount"`
 }
 
+func (participantMovement ParticipantMovement) GetId() int {
+	return participantMovement.Id
+}
+
+func (participantMovement *ParticipantMovement) SetId(id int) {
+	participantMovement.Id = id
+}
+
 type ParticipantShareByParticipantId map[int]Price
 
 type BalanceSheet interface {
@@ -32,7 +49,7 @@ type BalanceSheet interface {
 	GetDebt(participantId int) (int, error)
 }
 
-type DebitCreditMap map[int]map[int]int
+type DebitCreditMap map[int]map[int]Price
 
 func BuildParticipantsEqualShare(movement Movement, participantMovements []ParticipantMovement) ParticipantShareByParticipantId {
 	equalShare := movement.Amount / len(participantMovements)
@@ -140,7 +157,7 @@ func addDebitCreditMap(source DebitCreditMap, target DebitCreditMap) {
 	for i, innerMap := range source {
 		_, exists := target[i]
 		if !exists {
-			target[i] = make(map[int]int)
+			target[i] = make(map[int]Price)
 		}
 		for j, value := range innerMap {
 			_, exists := target[i][j]
@@ -152,11 +169,30 @@ func addDebitCreditMap(source DebitCreditMap, target DebitCreditMap) {
 	}
 }
 
-func SumDebitCreditMaps(map1 DebitCreditMap, map2 DebitCreditMap) DebitCreditMap {
+func SumDebitCreditMaps(left DebitCreditMap, right DebitCreditMap) DebitCreditMap {
 	result := make(DebitCreditMap)
 
-	addDebitCreditMap(map1, result)
-	addDebitCreditMap(map2, result)
+	addDebitCreditMap(left, result)
+	addDebitCreditMap(right, result)
+
+	return result
+}
+
+func addParticipantShare(source ParticipantShareByParticipantId, target ParticipantShareByParticipantId) {
+	for id, value := range source {
+		_, exists := target[id]
+		if !exists {
+			target[id] = 0
+		}
+		target[id] += value
+	}
+}
+
+func SumParticipantShares(left ParticipantShareByParticipantId, right ParticipantShareByParticipantId) ParticipantShareByParticipantId {
+	result := make(ParticipantShareByParticipantId)
+
+	addParticipantShare(left, result)
+	addParticipantShare(right, result)
 
 	return result
 }

@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -173,6 +174,7 @@ func TestCalculateDebitCreditMapForTransfer(t *testing.T) {
 	tests := []struct {
 		name             string
 		transferMovement TransferMovement
+		shares           ParticipantShareByParticipantId
 		expected         DebitCreditMap
 	}{
 		{
@@ -186,6 +188,10 @@ func TestCalculateDebitCreditMapForTransfer(t *testing.T) {
 				},
 				FromParticipantId: 1,
 				ToParticipantId:   2,
+			},
+			shares: ParticipantShareByParticipantId{
+				1: 1000,
+				2: -1000,
 			},
 			expected: DebitCreditMap{
 				2: {1: 1000},
@@ -205,9 +211,12 @@ func TestCalculateDebitCreditMapForTransfer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err.Error())
 			}
+			if !reflect.DeepEqual(participantShareByParticipantId, test.shares) {
+				t.Fatalf("generated share %v, expected share %v", participantShareByParticipantId, shares)
+			}
 			generated := BuildDebitCreditMap(participantMovements, participantShareByParticipantId)
 			if !areEquals(generated, test.expected) {
-				t.Errorf("generated %v, expected %v", generated, test.expected)
+				t.Errorf("generated balance %v, expected balance %v", generated, test.expected)
 			}
 		})
 	}
@@ -432,12 +441,37 @@ func TestCalculateSumDebitCreditMaps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+
 	participantShareByParticipantId := BuildParticipantsTransferShare(transferMovement)
 	err = EnsureSharesSumToZero(participantShareByParticipantId)
 	if err != nil {
 		t.Fatal(err.Error())
 	}
+	expectedShare := ParticipantShareByParticipantId{
+		1: -1000,
+		2: 1000,
+	}
+	if !reflect.DeepEqual(participantShareByParticipantId, expectedShare) {
+		t.Fatalf("generated share %v, expected share %v", participantShareByParticipantId, expectedShare)
+	}
+
 	generated := BuildDebitCreditMap(participantMovements, participantShareByParticipantId)
+	expectedBalance := DebitCreditMap{
+		1: {2: 1000},
+	}
+	if !areEquals(generated, expectedBalance) {
+		t.Fatalf("generated %v, expected %v", generated, expectedBalance)
+	}
+	acumulatedMap = SumDebitCreditMaps(acumulatedMap, generated)
+	expectedAcumulatedBalance := DebitCreditMap{
+		1: {2: 1500},
+		2: {1: 1200},
+		3: {1: 800, 2: 100},
+		4: {1: 100, 2: 200},
+	}
+	if !areEquals(acumulatedMap, expectedAcumulatedBalance) {
+		t.Fatalf("generated %v, expected %v", acumulatedMap, expectedAcumulatedBalance)
+	}
 }
 
 func areEquals(left, right DebitCreditMap) bool {
@@ -472,4 +506,76 @@ func areEquals(left, right DebitCreditMap) bool {
 	}
 
 	return true
+}
+
+func TestSumParticipantShares(t *testing.T) {
+	tests := []struct {
+		name     string
+		left     ParticipantShareByParticipantId
+		right    ParticipantShareByParticipantId
+		expected ParticipantShareByParticipantId
+	}{
+		{
+			name: "Merges two maps with no overlapping keys",
+			left: ParticipantShareByParticipantId{
+				1: 100,
+				2: 200,
+			},
+			right: ParticipantShareByParticipantId{
+				3: 300,
+				4: 400,
+			},
+			expected: ParticipantShareByParticipantId{
+				1: 100,
+				2: 200,
+				3: 300,
+				4: 400,
+			},
+		},
+		{
+			name: "Adds values for overlapping keys",
+			left: ParticipantShareByParticipantId{
+				1: 100,
+				2: 200,
+			},
+			right: ParticipantShareByParticipantId{
+				2: 150,
+				3: 300,
+			},
+			expected: ParticipantShareByParticipantId{
+				1: 100, // Solo en `left`
+				2: 350, // 200 (left) + 150 (right)
+				3: 300, // Solo en `right`
+			},
+		},
+		{
+			name:     "Handles empty left map",
+			left:     ParticipantShareByParticipantId{},
+			right:    ParticipantShareByParticipantId{1: 100},
+			expected: ParticipantShareByParticipantId{1: 100}, // Igual a `right`
+		},
+		{
+			name:     "Handles empty right map",
+			left:     ParticipantShareByParticipantId{1: 100},
+			right:    ParticipantShareByParticipantId{},
+			expected: ParticipantShareByParticipantId{1: 100}, // Igual a `left`
+		},
+		{
+			name:     "Both maps are empty",
+			left:     ParticipantShareByParticipantId{},
+			right:    ParticipantShareByParticipantId{},
+			expected: ParticipantShareByParticipantId{}, // Resultado vacío
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := SumParticipantShares(tc.left, tc.right)
+
+			if !reflect.DeepEqual(result, tc.expected) {
+				t.Errorf("Failed %s:\nGot:      %v\nExpected: %v", tc.name, result, tc.expected)
+			}
+
+		})
+	}
 }
