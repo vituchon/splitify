@@ -11,14 +11,14 @@ import (
 
 var (
 	groupsRepository               repositories.EntitiesRepository[*model.Group]
-	participantsRepository         repositories.EntitiesRepository[*model.Participant]
+	participantsRepository         repositories.ParticipantsRepository
 	movementsRepository            repositories.MovementsRepository
 	participantMovementsRepository repositories.ParticipantMovementsRepository
 )
 
 func init() {
 	groupsRepository = repositories.NewEntitiesMemoryStorage[*model.Group]()
-	participantsRepository = repositories.NewEntitiesMemoryStorage[*model.Participant]()
+	participantsRepository = repositories.NewParticipantsMemoryRepository()
 	movementsRepository = repositories.NewMovementsMemoryRepository()
 	participantMovementsRepository = repositories.NewParticipantMovementsMemoryRepository()
 }
@@ -28,6 +28,10 @@ func CreateGroup(name string) (*model.Group, error) {
 		Name: name,
 	}
 	return groupsRepository.Save(group)
+}
+
+func GetAllGroups() ([]*model.Group, error) {
+	return groupsRepository.GetAll()
 }
 
 type Participant struct {
@@ -47,6 +51,11 @@ func AddParticipant(participant Participant) (*model.Participant, error) {
 	return participantsRepository.Save(p)
 }
 
+func GetParticipants(groupId int) ([]*model.Participant, error) {
+	return participantsRepository.GetByGroupId(groupId)
+}
+
+
 type ParticipantMovement struct {
 	ParticipantId int         `json:"participantId"`
 	Amount        model.Price `json:"amount"`
@@ -57,6 +66,14 @@ type Movement struct {
 	Amount               model.Price           `json:"amount"`
 	Concept              string                `json:"concept"`
 	ParticipantMovements []ParticipantMovement `json:"participantMovement"`
+}
+
+func GetMovements(groupId int) ([]*model.Movement, error) {
+	return movementsRepository.GetByGroupId(groupId)
+}
+
+func GetParticipantMovements(movementId int) ([]*model.ParticipantMovement, error) {
+	return participantMovementsRepository.GetByMovementId(movementId)
 }
 
 func AddMovement(movement Movement) (*model.Movement, []*model.ParticipantMovement, error) {
@@ -156,7 +173,6 @@ func CalculateBalance(groupId int, movementId int) (model.DebitCreditMap, model.
 	}
 
 	participantMovements := util.ToValues(participantMovementsPtr)
-	
 
 	err = model.EnsureMovementAmountMatchesParticipantAmounts(*movement, participantMovements)
 	if err != nil {
