@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Group Management</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f4f4f9;
+    }
+
+    #group-list {
+      width: 100%;
+      max-width: 500px;
+      margin: 20px auto;
+    }
+
+    .group {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .group button {
+      margin-left: 5px;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #add-group-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      visibility: hidden;
+      opacity: 0;
+      transition: visibility 0s, opacity 0.3s;
+    }
+
+    .modal.active {
+      visibility: visible;
+      opacity: 1;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    .modal-content input {
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    .modal-content button {
+      padding: 10px 20px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .modal-content button.close {
+      background: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <img src="/assets/imagen.jpg" alt="Ejemplo de imagen" style="height: 10em;">
+
+
+  <h1>Grupos</h1>
+  <div id="group-list"></div>
+
+  <button id="add-group-btn">+</button>
+
+  <!-- Modal for adding a group -->
+  <div id="add-group-modal" class="modal">
+    <div class="modal-content">
+      <h2>Add Group</h2>
+      <input id="group-name-input" type="text" placeholder="Enter group name">
+      <button id="add-group-confirm-btn">OK</button>
+      <button class="close" onclick="toggleModal('add-group-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Modal for adding participants and movements will follow similar structure -->
+  <div id="add-participant-modal" class="modal">
+    <div class="modal-content">
+      <h2>Add Participant</h2>
+      <input id="participant-name-input" type="text" placeholder="Enter participant name">
+      <button id="add-participant-confirm-btn">OK</button>
+      <button class="close" onclick="toggleModal('add-participant-modal')">Cancel</button>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE_URL = '/api/v1';
+
+    async function fetchAndRenderGroups() {
+      const groups = await fetchGroups()
+      return renderGroups(groups)
+    }
+
+    async function fetchGroups() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/groups`);
+        if (response.ok) {
+          const groups = await response.json();
+          return groups;
+        } else {
+          throw new Error(`Failed to fetch groups: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error fetching groups:', error);
+        throw error;
+      }
+    }
+
+    async function addGroup(name) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/groups?name=${name}`, {
+          method: 'POST',
+        });
+        if (response.ok) {
+          const group = await response.json();
+          return group;
+        } else {
+          throw new Error(`Failed to add group: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error adding group:', error);
+        throw error;
+      }
+    }
+
+    async function renderGroups(groups) {
+      const groupList = document.getElementById('group-list');
+      groupList.innerHTML = '';
+      groups.forEach(async group => {
+        group.participants = await fetchParticipants(group.id)
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'group';
+        groupDiv.innerHTML = `
+          <b>${group.name}</b>
+          <div>
+            <div>Movimientos</div>
+            <button onclick="openMovementModal(${group.id})">Cargar Movimiento</button>
+          </div>
+          <div>
+            <div>Participantes</div>
+            <ul id="participant-list-${group.id}">
+              ${(group.participants || []).map(participant => `<li>${participant.name}</li>`).join('')}
+            </ul>
+            <button onclick="openParticipantModal(${group.id})">Agregar Participante</button>
+          </div>
+        `;
+        groupList.appendChild(groupDiv);
+      });
+    }
+
+    function toggleModal(modalId) {
+      const modal = document.getElementById(modalId);
+      modal.classList.toggle('active');
+    }
+
+    document.getElementById('add-group-btn').addEventListener('click', () => {
+      toggleModal('add-group-modal');
+    });
+
+    document.getElementById('add-group-confirm-btn').addEventListener('click',async () => {
+      const groupName = document.getElementById('group-name-input').value;
+      if (groupName.trim()) {
+        await addGroup(groupName);
+        document.getElementById('group-name-input').value = ""
+        toggleModal('add-group-modal');
+        fetchAndRenderGroups();
+      } else {
+        alert('Group name cannot be empty');
+      }
+    });
+
+    fetchAndRenderGroups();
+  </script>
+  <script>
+    async function fetchParticipants(groupId) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/groups/${groupId}/participants`);
+        if (response.ok) {
+          const participants = await response.json();
+          return participants
+        } else {
+          throw new Error(`Failed to add group: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error fetching participants:', error);
+      }
+    }
+
+    async function addParticipant(name, groupId) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/groups/${groupId}/participants?name=${name}`, {
+          method: 'POST',
+        })
+        if (response.ok) {
+          const participant = await response.json();
+          return participant;
+        } else {
+          throw new Error(`Failed to add participant: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error adding participant:', error);
+        throw error;
+      }
+    }
+
+    document.getElementById('add-participant-confirm-btn').addEventListener('click', async () => {
+      const participantNameInput = document.getElementById('participant-name-input');
+      const groupId = document.getElementById('participant-name-input').dataset.groupId
+      const name = participantNameInput.value.trim();
+      try {
+        await addParticipant(name, groupId)
+        participantNameInput.value = '';
+        toggleModal('add-participant-modal');
+        alert('Participant added successfully!');
+        fetchAndRenderGroups();
+      } catch (error) {
+        alert(error)
+      }
+    });
+
+    function openParticipantModal(groupId) {
+      const modal = document.getElementById('add-participant-modal');
+      document.getElementById('participant-name-input').dataset.groupId = groupId;
+      toggleModal('add-participant-modal');
+    }
+
+  </script>
+</body>
+</html>
